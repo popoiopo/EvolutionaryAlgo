@@ -24,13 +24,13 @@ import time
 
 def fitnessGeneralist(fitness, playerLife, enemyLife, time):
     """Calculate general fitness over parDict['enemies'] amount of enemies
-    
+
     Arguments:
         fitness {np.array} -- Array of parDict['enemies'] integer scores
         playerLife {np.array} -- Array of parDict['enemies'] remnants of player life
         enemyLife {np.array} -- Array of parDict['enemies'] remnants of enemy life
         time {[type]} -- Array of parDict['enemies'] integers of time it took to finish the game
-    
+
     Returns:
         int -- General score over parDict['enemies'] scores
     """
@@ -41,12 +41,12 @@ def fitnessGeneralist(fitness, playerLife, enemyLife, time):
 
 def fitness_single(playerLife, enemyLife, time):
     """Calculate fitness of a single run
-    
+
     Arguments:
         playerLife {int} -- Remnant of players life
         enemyLife {int} -- Remnant (if any) of enemy life
-        time {int} -- Time passed in being defeated or defeating an enemy  
-    
+        time {int} -- Time passed in being defeated or defeating an enemy
+
     Returns:
         int -- Fitness score of single run
     """
@@ -61,10 +61,10 @@ def fitness_single(playerLife, enemyLife, time):
 
 def getScores(population):
     """Get scores for each individual in the population in a parallel manner
-    
+
     Arguments:
         population {np.array} -- Array with parDict['popSize'] solutions of parDict['solutionSize'] length
-    
+
     Returns:
         np.array -- Array of scores linked by index number to the population
     """
@@ -86,11 +86,11 @@ def getScores(population):
 def simulation(x, scores):
     """Actual simulation that is parallelized. It runs parDict['enemies'] amount of randomly chosen enemies
        and applies a generalist score function on its output per enemy
-    
+
     Arguments:
         x {np.array} -- Single solution of parDict['solutionSize']
         scores {multiprocessing.list()} -- List that is shared by the multiprocessing manager onto which results are appended
-    
+
     Returns:
         np.array -- Set of scores (not actually used, but there as check)
     """
@@ -133,7 +133,7 @@ def simulation(x, scores):
 
 def eaMain():
     """Main function of the Genetic Algorithm, sets everything in motion
-    
+
     Returns:
         np.arrays -- populations and scores for each generation
     """
@@ -160,13 +160,13 @@ def eaMain():
 
 
 def checkStop(allScores):
-    """Give stopcondition when algorithm has converged 
-    (i.e. the best solutions have not changed for {parDict['breakDomain']} steps 
+    """Give stopcondition when algorithm has converged
+    (i.e. the best solutions have not changed for {parDict['breakDomain']} steps
     with a {parDict['minVar']} variance)
-    
+
     Arguments:
         allScores {np.array} -- array of scores from every previous generation
-    
+
     Returns:
         int -- 1 => break out of EA, 0 => proceed
     """
@@ -179,10 +179,10 @@ def checkStop(allScores):
 
 def getPopulation(size):
     """Function to get a solution population of specific size
-    
+
     Arguments:
         size {int} -- Size of population
-    
+
     Returns:
         np.array -- Genepool of {size} solutions
     """
@@ -191,15 +191,15 @@ def getPopulation(size):
 
 def getParents(scores, population, distrib='linear', fit_offset=0.001):
     """Select parents for the next generation
-    
+
     Arguments:
         scores {np.array} -- Scores of everyone in the parentpool population
         population {np.array} -- Array with parDict['popSize'] solutions of parDict['solutionSize'] length
-    
+
     Keyword Arguments:
         distrib {str} -- [description] (default: {'linear'})
         fit_offset {float} -- [description] (default: {0.001})
-    
+
     Returns:
         [type] -- [description]
     """
@@ -283,7 +283,7 @@ def getParents(scores, population, distrib='linear', fit_offset=0.001):
 
 def distribution(x):  # feel free to alter or expand
     """Distribution of TOBIAS NAAR KIJKEN ############################
-    
+
     Returns:
         [type] -- [description]
     """
@@ -292,14 +292,14 @@ def distribution(x):  # feel free to alter or expand
 
 def getNextGen(genepool, eliteGen, sim_con=False):
     """Umbrella function for creating the next generation from chosen genepool
-    
+
     Arguments:
         genepool {np.array} -- Array with parDict['popSize'] solutions of parDict['solutionSize'] length
         eliteGen {np.array} -- Solutions that are advancing through elitism
-    
+
     Keyword Arguments:
         sim_con {bool} -- [description] (default: {False})
-    
+
     Returns:
         np.array -- Next generation genepool
     """
@@ -313,15 +313,15 @@ def crossover(genepool,
               similarity_constraint=False,
               similarity_multiplier=2):
     """Crossover function dependent on parDict['crossoverType']
-    
+
     Arguments:
         genepool {np.array} -- Array with parDict['popSize'] solutions of parDict['solutionSize'] length
-    
+
     Keyword Arguments:
         n_crosses {int} -- [description] (default: {1})
         similarity_constraint {bool} -- [description] (default: {False})
         similarity_multiplier {int} -- [description] (default: {2})
-    
+
     Returns:
         np.array -- Population with crossover
     """
@@ -384,10 +384,10 @@ def crossover(genepool,
 
 def mutations(genepool):
     """Function that imposes mutations on the genepool. Method of mutation depends on parDict['mutationType']
-    
+
     Arguments:
         genepool {np.array} -- Array with parDict['popSize'] solutions of parDict['solutionSize'] length
-    
+
     Returns:
         np.array -- Mutated population
     """
@@ -524,14 +524,14 @@ def hillClimber(iterations, filename):
     pickle.dump(bestParameters, open(filename, "wb"))
 
     return bestParameters
-        
+
 
 def perturbParameters(parameters):
     """Function for perturbing EA parameters
-    
+
     Arguments:
         parameters {dict} -- dictionary of all parameters that need to be optimized
-    
+
     Returns:
         dict -- perturbed set of parameters
     """
@@ -670,7 +670,7 @@ if __name__ == '__main__':
     # bestParameters = hillClimber(100, hillFilename)
     # print(bestParameters)
 
-    filename = f"data/gens_{parDict['eaGens']}_psize_{parDict['popSize']}_{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.pkl"
+    filename = f"data/rebecca/gens_{parDict['eaGens']}_psize_{parDict['popSize']}_{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.pkl"
     dObject = dataObject(parDict, filename)
 
     for rep in range(parDict["reps"]):

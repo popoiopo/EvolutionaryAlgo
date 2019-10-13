@@ -34,9 +34,16 @@ def fitnessGeneralist(fitness, playerLife, enemyLife, time):
     Returns:
         int -- General score over parDict['enemies'] scores
     """
-    wins = (np.count_nonzero(enemyLife == 0) / parDict["enemies"]) * 100
+    wins = (np.count_nonzero(np.array(enemyLife) == 0) / parDict["enemies"]) * 100
     plife = np.mean(playerLife)
-    return 0.9 * wins + 0.1 * plife - np.mean(np.log(time))
+
+    if parDict["verbose"]:
+        print("GET GENERAL SCORE")
+        print(fitness, playerLife, enemyLife, time)
+        print("Generalist", wins)
+        print(f"plife {plife}")
+
+    return 0.7 * wins + 0.3 * plife - np.mean(np.log(time))
 
 
 def fitness_single(playerLife, enemyLife, time):
@@ -50,7 +57,7 @@ def fitness_single(playerLife, enemyLife, time):
     Returns:
         int -- Fitness score of single run
     """
-    return 0.9 * (100 - enemyLife) + 0.1 * playerLife - numpy.log(time)
+    return 0.9 * (100 - enemyLife) + 0.1 * playerLife - np.log(time)
 
 
 #####################################################################################
@@ -70,20 +77,23 @@ def getScores(population):
     """
     manager = multiprocess.Manager()
     scores = manager.list()
+    individualScores = manager.list()
+    wins = manager.list()
+    parameters = manager.list()
     jobs = []
 
     for x in population:
-        p = multiprocess.Process(target=simulation, args=(x, scores))
+        p = multiprocess.Process(target=simulation, args=(x, scores, individualScores, wins, parameters))
         jobs.append(p)
         p.start()
 
     for proc in jobs:
         proc.join()
 
-    return np.array(scores)
+    return np.array(scores), np.array(individualScores), np.array(wins), np.array(parameters)
 
 
-def simulation(x, scores):
+def simulation(x, scores, individualScores, wins, parameters):
     """Actual simulation that is parallelized. It runs parDict['enemies'] amount of randomly chosen enemies
        and applies a generalist score function on its output per enemy
 
@@ -114,14 +124,22 @@ def simulation(x, scores):
     env.state_to_log()  # checks environment state
 
     enemyFighters = np.random.choice(parDict["enemyrange"], parDict["enemies"])
+    enemyFighters = list(range(1, parDict["enemies"]+1))
     for en in enemyFighters:
         env.update_parameter('enemies', [en])
         output = list(env.play(pcont=x))
-        # output[0] = fitness_single(*output[1:]) # Uncomment if custom fitness score is used
+        output[0] = fitness_single(*output[1:])
+
+        if parDict["verbose"]:
+            print("ENEMY", en)
+            print(output)
         for lstData, lst in zip(output, outputList):
             lst.append(lstData)
 
     scores.append(fitnessGeneralist(*outputList))
+    individualScores.append(fitness)
+    wins.append(np.count_nonzero(np.array(enemyLife) == 0))
+    parameters.append(x)
     return scores
 
 
@@ -138,25 +156,30 @@ def eaMain():
         np.arrays -- populations and scores for each generation
     """
     newPop = getPopulation(parDict["popSize"])
-    scores = getScores(newPop)
+    scores, individualScores, wins, newPop = getScores(newPop)
+    if parDict["verbose"]: print("*********** ENDSCORES **********\n", scores, individualScores, wins)
 
-    print(f"Generation 0, Top score: {np.max(scores)}")
+    print(f"Generation 0, Top score: {max(scores)}")
 
-    populations, allScores = [list(newPop)], [list(scores)]
+    populations, allScores, iScores, allWins = [list(newPop)], [list(scores)], [list(individualScores)], [list(wins)]
 
     for gens in range(parDict["eaGens"] - 1):
         eliteGen, newPop, eliteScores, newScores = getParents(scores, newPop)
         newPop = getNextGen(newPop, eliteGen)
-        scores = getScores(newPop)
+        scores, individualScores, wins, newPop = getScores(newPop)
 
-        print(f"Generation {gens+1}, Top score: {np.max(scores)}")
+        print(f"Generation {gens+1}, Top score: {np.max(scores)}, Wins: {wins}")
+
+        if parDict["verbose"]: print("*********** ENDSCORES **********\n", scores, individualScores, wins)
 
         populations.append(list(newPop))
         allScores.append(list(scores))
+        iScores.append(list(individualScores))
+        allWins.append(wins)
 
-        if gens+1 > parDict["breakDomain"] and checkStop(allScores): break
+        # if gens+1 > parDict["breakDomain"] and checkStop(allScores): break
 
-    return populations, allScores
+    return populations, allScores, iScores, allWins
 
 
 def checkStop(allScores):
@@ -207,7 +230,7 @@ def getParents(scores, population, distrib='linear', fit_offset=0.001):
 
     # get immigrants
     immigrantPars = getPopulation(parDict["numInflux"])
-    immigrantScores = getScores(immigrantPars)
+    immigrantScores, individualScores, wins, immigrantPars = getScores(immigrantPars)
 
     # select best solutions for elitism
     elitismPars = population[scoreI[:parDict["numElite"]]]
@@ -566,12 +589,16 @@ class dataObject:
     def __init__(self, parameters, filename):
         self.populations = []
         self.scores = []
+        self.iScores = []
+        self.wins = []
         self.filename = filename
         self.parameters = parameters
 
-    def addRep(self, population, scores):
+    def addRep(self, population, scores, iScores, wins):
         self.populations.append(population)
         self.scores.append(scores)
+        self.iScores.append(iScores)
+        self.wins.append(wins)
 
     def load(self):
         f = open(self.filename, 'rb')
@@ -619,11 +646,11 @@ mutationTypes = [
 rangeTypes = ["fixed", "random"]
 
 parDict = {
-    "enemies": 2,
-    "enemyrange": list(range(1, 9)),
-    "eaGens": 3,
-    "popSize": 10,
-    "reps": 2,
+    "enemies": 3,
+    "enemyrange": list(range(1, 10)),
+    "eaGens": 10,
+    "popSize": 20,
+    "reps": 1,
     "N_hidden": 10,
     "num_inputs": env.get_num_sensors(),
     "num_outputs": 5,
@@ -634,11 +661,12 @@ parDict = {
     "mutationType": mutationTypes[2],
     "rangeType": rangeTypes[0],
     "rangeSize": 0.1, # if ranged mutation, ratio of mutations of whole genome
-    "numElite": 1,  # of population that gets retained into next generation
+    "numElite": 3,  # of population that gets retained into next generation
     "numInflux": 1,  # of population that is freshly immigrated
     "crossover_bias": 15,
     "breakDomain": 1, # number of generations check for stopcondition, 1 third of eaGens should be nice
-    "minVar": 1 # variation threshold, if variation of last {breakDomain} generations < this -> break
+    "minVar": 1, # variation threshold, if variation of last {breakDomain} generations < this -> break
+    "verbose": False # true or false to see debugging prints
 }
 
 parDict["solutionSize"] = ((parDict["num_inputs"] + 1) * parDict["N_hidden"] +
@@ -670,7 +698,8 @@ if __name__ == '__main__':
     # bestParameters = hillClimber(100, hillFilename)
     # print(bestParameters)
 
-    filename = f"data/bas/gens_{parDict['eaGens']}_psize_{parDict['popSize']}_{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.pkl"
+    # filename = f"data/bas/gens_{parDict['eaGens']}_psize_{parDict['popSize']}_{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.pkl"
+    filename = "test.pkl"
     dObject = dataObject(parDict, filename)
 
     for rep in range(parDict["reps"]):

@@ -435,7 +435,7 @@ def mutations(genepool):
     elif parDict["mutationType"] == "rangedMutation":
         if parDict["rangeType"] == "fixed":
             for child in genepool:
-                for i in range(rangeSize * len(child)):
+                for i in range(parDict["rangeSize"] * len(child)):
                     child[np.random.choice(range(
                         len(child)))] += np.random.uniform(
                             *parDict["mutationDomain"])
@@ -647,14 +647,14 @@ rangeTypes = ["fixed", "random"]
 
 parDict = {
     "enemies": 3,
-    "enemyrange": list(range(1, 10)),
+    "enemyrange": list(range(1, 9)),
     "eaGens": 10,
     "popSize": 20,
     "reps": 1,
     "N_hidden": 10,
     "num_inputs": env.get_num_sensors(),
     "num_outputs": 5,
-    "parentSelect": parentSelectTypes[0],
+    "parentSelect": parentSelectTypes[1],
     "crossoverType": crossoverTypes[2],
     "mutationChanceType": mutationChanceTypes[1],
     "mutationDomain": (-0.05, 0.05),

@@ -22,6 +22,10 @@ import time
 #####################################################################################
 
 
+def gainMeasure(playerLife, enemyLife):
+    return np.sum(playerLife) - np.sum(enemyLife)
+
+
 def fitnessGeneralist(fitness, playerLife, enemyLife, time):
     """Calculate general fitness over parDict['enemies'] amount of enemies
 
@@ -43,7 +47,7 @@ def fitnessGeneralist(fitness, playerLife, enemyLife, time):
         print("Generalist", wins)
         print(f"plife {plife}")
 
-    return 0.7 * wins + 0.3 * plife - np.mean(np.log(time))
+    return 0.7 * wins + 0.3 * plife - np.mean(np.log(time)), gainMeasure(playerLife, enemyLife)
 
 
 def fitness_single(playerLife, enemyLife, time):
@@ -77,23 +81,24 @@ def getScores(population):
     """
     manager = multiprocess.Manager()
     scores = manager.list()
+    gains = manager.list()
     individualScores = manager.list()
     wins = manager.list()
     parameters = manager.list()
     jobs = []
 
     for x in population:
-        p = multiprocess.Process(target=simulation, args=(x, scores, individualScores, wins, parameters))
+        p = multiprocess.Process(target=simulation, args=(x, scores, gains, individualScores, wins, parameters))
         jobs.append(p)
         p.start()
 
     for proc in jobs:
         proc.join()
 
-    return np.array(scores), np.array(individualScores), np.array(wins), np.array(parameters)
+    return np.array(scores), np.array(gains), np.array(individualScores), np.array(wins), np.array(parameters)
 
 
-def simulation(x, scores, individualScores, wins, parameters):
+def simulation(x, scores, gains, individualScores, wins, parameters):
     """Actual simulation that is parallelized. It runs parDict['enemies'] amount of randomly chosen enemies
        and applies a generalist score function on its output per enemy
 
@@ -135,12 +140,13 @@ def simulation(x, scores, individualScores, wins, parameters):
             print(output)
         for lstData, lst in zip(output, outputList):
             lst.append(lstData)
-
-    scores.append(fitnessGeneralist(*outputList))
+    score, gain = fitnessGeneralist(*outputList)
+    scores.append(score)
+    gains.append(gain)
     individualScores.append(fitness)
     wins.append(np.count_nonzero(np.array(enemyLife) == 0))
     parameters.append(x)
-    return scores
+    return scores, gains
 
 
 #####################################################################################
@@ -156,17 +162,17 @@ def eaMain():
         np.arrays -- populations and scores for each generation
     """
     newPop = getPopulation(parDict["popSize"])
-    scores, individualScores, wins, newPop = getScores(newPop)
+    scores, gains, individualScores, wins, newPop = getScores(newPop)
     if parDict["verbose"]: print("*********** ENDSCORES **********\n", scores, individualScores, wins)
 
     print(f"Generation 0, Top score: {max(scores)}")
 
-    populations, allScores, iScores, allWins = [list(newPop)], [list(scores)], [list(individualScores)], [list(wins)]
+    populations, allScores, allGains, iScores, allWins = [list(newPop)], [list(scores)], [list(gains)], [list(individualScores)], [list(wins)]
 
     for gens in range(parDict["eaGens"] - 1):
         eliteGen, newPop, eliteScores, newScores = getParents(scores, newPop)
         newPop = getNextGen(newPop, eliteGen)
-        scores, individualScores, wins, newPop = getScores(newPop)
+        scores, gains, individualScores, wins, newPop = getScores(newPop)
 
         print(f"Generation {gens+1}, Top score: {np.max(scores)}, Wins: {wins}")
 
@@ -174,12 +180,13 @@ def eaMain():
 
         populations.append(list(newPop))
         allScores.append(list(scores))
+        allGains.append(list(gains))
         iScores.append(list(individualScores))
         allWins.append(wins)
 
         # if gens+1 > parDict["breakDomain"] and checkStop(allScores): break
 
-    return populations, allScores, iScores, allWins
+    return populations, allScores, allGains, iScores, allWins
 
 
 def checkStop(allScores):
@@ -194,7 +201,7 @@ def checkStop(allScores):
         int -- 1 => break out of EA, 0 => proceed
     """
     lastN = allScores[-parDict["breakDomain"]:]
-    if np.var(np.max(lastN, axis=1)) < parDict["minVar"]:
+    if np.var(np.mean(lastN, axis=1)) < parDict["minVar"]:
         return 1
     else:
         return 0
@@ -230,7 +237,7 @@ def getParents(scores, population, distrib='linear', fit_offset=0.001):
 
     # get immigrants
     immigrantPars = getPopulation(parDict["numInflux"])
-    immigrantScores, individualScores, wins, immigrantPars = getScores(immigrantPars)
+    immigrantScores, immigrantGains, individualScores, wins, immigrantPars = getScores(immigrantPars)
 
     # select best solutions for elitism
     elitismPars = population[scoreI[:parDict["numElite"]]]
@@ -589,14 +596,16 @@ class dataObject:
     def __init__(self, parameters, filename):
         self.populations = []
         self.scores = []
+        self.gains = []
         self.iScores = []
         self.wins = []
         self.filename = filename
         self.parameters = parameters
 
-    def addRep(self, population, scores, iScores, wins):
+    def addRep(self, population, scores, gains, iScores, wins):
         self.populations.append(population)
         self.scores.append(scores)
+        self.gains.append(gains)
         self.iScores.append(iScores)
         self.wins.append(wins)
 
@@ -655,13 +664,13 @@ parDict = {
     "num_inputs": env.get_num_sensors(),
     "num_outputs": 5,
     "parentSelect": parentSelectTypes[1],
-    "crossoverType": crossoverTypes[2],
+    "crossoverType": crossoverTypes[1],
     "mutationChanceType": mutationChanceTypes[1],
     "mutationDomain": (-0.05, 0.05),
     "mutationType": mutationTypes[2],
     "rangeType": rangeTypes[0],
     "rangeSize": 0.1, # if ranged mutation, ratio of mutations of whole genome
-    "numElite": 3,  # of population that gets retained into next generation
+    "numElite": 2,  # of population that gets retained into next generation
     "numInflux": 1,  # of population that is freshly immigrated
     "crossover_bias": 15,
     "breakDomain": 1, # number of generations check for stopcondition, 1 third of eaGens should be nice
